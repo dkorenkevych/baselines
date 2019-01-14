@@ -13,26 +13,38 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     ac = env.action_space.sample() # not used, just so we have the datatype
     new = True # marks if we're on first timestep of an episode
     ob = env.reset()
-
+    stacked_ob = [ob * 0.0] * 3 + [ob]
+    stacked_ac = [ac * 0.0] * 4
     cur_ep_ret = 0 # return in current episode
     cur_ep_len = 0 # len of current episode
     ep_rets = [] # returns of completed episodes in this segment
     ep_lens = [] # lengths of ...
 
     # Initialize history arrays
-    obs = np.array([ob for _ in range(horizon)])
+    obs = np.array([stacked_ob for _ in range(horizon)])
     rews = np.zeros(horizon, 'float32')
     vpreds = np.zeros(horizon, 'float32')
     news = np.zeros(horizon, 'int32')
-    acs = np.array([ac for _ in range(horizon)])
+    acs = np.array([stacked_ac for _ in range(horizon)])
     prevacs = acs.copy()
-
+    noise_vals = []
     while True:
-        prevac = ac
-        ac, vpred = pi.act(stochastic, ob)
+        prevac = np.array(stacked_ac)
+        ac, vpred, ac_mean, logstd = pi.act(stochastic, np.array(stacked_ob), np.array(stacked_ac[1:]))
+        #noise_vals.append(ac - ac_mean[-ac.shape[-1]:])
+        stacked_ac.append(ac)
+        stacked_ac = stacked_ac[1:]
         # Slight weirdness here because we need value function at time T
         # before returning segment [0, T-1] so we get the correct
         # terminal value
+        if t == -1000:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.plot(np.array(noise_vals)[:, 0])
+            plt.plot(np.array(noise_vals)[:, 1])
+            plt.show()
+        if t%200 >= 0 and t%200 < 5:
+            print(ac_mean[-ac.shape[-1]:], ac, np.exp(logstd), vpred)
         if t > 0 and t % horizon == 0:
             yield {"ob" : obs, "rew" : rews, "vpred" : vpreds, "new" : news,
                     "ac" : acs, "prevac" : prevacs, "nextvpred": vpred * (1 - new),
@@ -42,13 +54,15 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             ep_rets = []
             ep_lens = []
         i = t % horizon
-        obs[i] = ob
+        obs[i] = np.array(stacked_ob)
         vpreds[i] = vpred
         news[i] = new
-        acs[i] = ac
+        acs[i] = np.array(stacked_ac)
         prevacs[i] = prevac
 
         ob, rew, new, _ = env.step(ac)
+        stacked_ob.append(ob)
+        stacked_ob = stacked_ob[1:]
         rews[i] = rew
 
         cur_ep_ret += rew
@@ -59,6 +73,8 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             cur_ep_ret = 0
             cur_ep_len = 0
             ob = env.reset()
+            stacked_ob = [ob * 0.0] * 3 + [ob]
+            stacked_ac = [ac * 0.0] * 4
         t += 1
 
 def add_vtarg_and_adv(seg, gamma, lam):
@@ -85,7 +101,9 @@ def learn(env, policy_fn, *,
         max_timesteps=0, max_episodes=0, max_iters=0, max_seconds=0,  # time constraint
         callback=None, # you can do anything in the callback, since it takes locals(), globals()
         adam_epsilon=1e-5,
-        schedule='constant' # annealing for stepsize parameters (epsilon and adam)
+        schedule='constant', # annealing for stepsize parameters (epsilon and adam)
+        alpha = 0.0,
+        noise_type="white"
         ):
     # Setup losses and stuff
     # ----------------------------------------
@@ -100,8 +118,7 @@ def learn(env, policy_fn, *,
     clip_param = clip_param * lrmult # Annealed clipping parameter epsilon
 
     ob = U.get_placeholder_cached(name="ob")
-    ac = pi.pdtype.sample_placeholder([None])
-
+    ac = tf.placeholder(dtype=tf.float32, shape=[None, 4, ac_space.shape[-1]])
     kloldnew = oldpi.pd.kl(pi.pd)
     ent = pi.pd.entropy()
     meankl = tf.reduce_mean(kloldnew)
