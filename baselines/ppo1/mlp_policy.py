@@ -17,11 +17,11 @@ class MlpPolicy(object):
         self.pdtype = pdtype = make_pdtype(ac_space)
         sequence_length = None
         self.sigma = sigma
-        ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[sequence_length, 4] + list(ob_space.shape))
+        ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[sequence_length, 4] + [ob_space.shape[-1] + ac_space.shape[-1]])
         acs = U.get_placeholder(name="ac", dtype=tf.float32, shape=[sequence_length, 3] + list(ac_space.shape))
         obz = tf.reshape(ob, [-1, 4 * ob.shape[-1]])
         with tf.variable_scope("obfilter"):
-            self.ob_rms = RunningMeanStd(shape=ob_space.shape[-1] * 4)
+            self.ob_rms = RunningMeanStd(shape=(ob_space.shape[-1] + ac_space.shape[-1]) * 4)
 
         with tf.variable_scope('vf'):
             obz = tf.clip_by_value((obz - self.ob_rms.mean) / self.ob_rms.std, -5.0, 5.0)

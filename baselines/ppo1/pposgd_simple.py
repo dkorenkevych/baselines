@@ -21,7 +21,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     ep_lens = [] # lengths of ...
 
     # Initialize history arrays
-    obs = np.array([stacked_ob for _ in range(horizon)])
+    obs = np.array([np.hstack([stacked_ob, stacked_ac]) for _ in range(horizon)])
     rews = np.zeros(horizon, 'float32')
     vpreds = np.zeros(horizon, 'float32')
     news = np.zeros(horizon, 'int32')
@@ -30,7 +30,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     noise_vals = []
     while True:
         prevac = np.array(stacked_ac)
-        ac, vpred, ac_mean, logstd = pi.act(stochastic, np.array(stacked_ob), np.array(stacked_ac[1:]))
+        ac, vpred, ac_mean, logstd = pi.act(stochastic, np.hstack([stacked_ob, stacked_ac]), np.array(stacked_ac[1:]))
         #noise_vals.append(ac - ac_mean[-ac.shape[-1]:])
         stacked_ac.append(ac)
         stacked_ac = stacked_ac[1:]
@@ -54,7 +54,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             ep_rets = []
             ep_lens = []
         i = t % horizon
-        obs[i] = np.array(stacked_ob)
+        obs[i] = np.hstack([stacked_ob, stacked_ac])
         vpreds[i] = vpred
         news[i] = new
         acs[i] = np.array(stacked_ac)
