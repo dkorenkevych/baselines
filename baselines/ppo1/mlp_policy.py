@@ -20,11 +20,11 @@ class MlpPolicy(object):
         ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[sequence_length, 4] + list(ob_space.shape))
         acs = U.get_placeholder(name="ac", dtype=tf.float32, shape=[sequence_length, 3] + list(ac_space.shape))
         obz = tf.reshape(ob, [-1, 4 * ob.shape[-1]])
-        #with tf.variable_scope("obfilter"):
-        #    self.ob_rms = RunningMeanStd(shape=ob_space.shape[-1] * 4)
+        with tf.variable_scope("obfilter"):
+            self.ob_rms = RunningMeanStd(shape=ob_space.shape[-1] * 4)
 
         with tf.variable_scope('vf'):
-            #obz = tf.clip_by_value((obz - self.ob_rms.mean) / self.ob_rms.std, -5.0, 5.0)
+            obz = tf.clip_by_value((obz - self.ob_rms.mean) / self.ob_rms.std, -5.0, 5.0)
             last_out = obz
             for i in range(num_hid_layers):
                 last_out = tf.nn.tanh(tf.layers.dense(last_out, hid_size, name="fc%i"%(i+1), kernel_initializer=U.normc_initializer(1.0)))
