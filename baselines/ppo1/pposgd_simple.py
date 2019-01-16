@@ -32,8 +32,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         prevac = np.array(stacked_ac)
         ac, vpred, ac_mean, logstd = pi.act(stochastic, np.hstack([stacked_ob, stacked_ac]), np.array(stacked_ac[1:]))
         #noise_vals.append(ac - ac_mean[-ac.shape[-1]:])
-        stacked_ac.append(ac)
-        stacked_ac = stacked_ac[1:]
+
         # Slight weirdness here because we need value function at time T
         # before returning segment [0, T-1] so we get the correct
         # terminal value
@@ -55,6 +54,8 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             ep_lens = []
         i = t % horizon
         obs[i] = np.hstack([stacked_ob, stacked_ac])
+        stacked_ac.append(ac)
+        stacked_ac = stacked_ac[1:]
         vpreds[i] = vpred
         news[i] = new
         acs[i] = np.array(stacked_ac)
