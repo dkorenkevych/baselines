@@ -235,7 +235,7 @@ class DiagGaussianPd(Pd):
         return self.mean
     def neglogp(self, acs):
         h = self.coeffs[0] * (acs[:, 0, :] - self.mean3) + self.coeffs[1] * (acs[:, 1, :] - self.mean2) + self.coeffs[2] * (acs[:, 2, :] - self.mean1)
-        return 0.5 * tf.reduce_sum(tf.square((acs[:, -1, :] - self.mean - h * self.std) / (self.std * self.sigma)), axis=-1) \
+        return 0.5 * tf.reduce_sum(tf.square((acs[:, -1, :] - self.mean - h) / (self.std * self.sigma)), axis=-1) \
                + 0.5 * np.log(2.0 * np.pi) * tf.to_float(tf.shape(acs)[-1]) \
                + tf.reduce_sum(self.logstd, axis=-1)
     def kl(self, other):
@@ -246,7 +246,7 @@ class DiagGaussianPd(Pd):
     def sample(self, acs):
         h = self.coeffs[0] * (acs[:, 0, :] - self.mean3) + self.coeffs[1] * (acs[:, 1, :] - self.mean2) + self.coeffs[2] * (
                 acs[:, 2, :] - self.mean1)
-        return self.mean + self.std * (h + self.sigma * tf.random_normal(tf.shape(self.mean)))
+        return self.mean + h + self.std * self.sigma * tf.random_normal(tf.shape(self.mean))
     @classmethod
     def fromflat(cls, flat):
         return cls(flat)

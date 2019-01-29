@@ -53,17 +53,19 @@ def traj_segment_generator(pi, env, horizon, stochastic):
                     "ep_rets" : ep_rets, "ep_lens" : ep_lens}
             # Be careful!!! if you change the downstream algorithm to aggregate
             # several of these batches, then be sure to do a deepcopy
-            ac, vpred, ac_mean2, logstd = pi.act(stochastic, np.hstack([stacked_ob, stacked_ac]),
-                                                np.array(stacked_ac[1:]))
-            stacked_ac = np.array(stacked_ac)
-            stacked_ac += (ac_mean2 - ac_mean).reshape((4, ac.shape[-1]))
-            stacked_ac = list(stacked_ac)
             ep_rets = []
             ep_lens = []
         i = t % horizon
         obs[i] = np.hstack([stacked_ob, stacked_ac])
         stacked_ac.append(ac)
         stacked_ac = stacked_ac[1:]
+        if t >0 and i == 0:
+            _, vpred, ac_mean2, logstd = pi.act(False, np.hstack([stacked_ob, stacked_ac]),
+                                                 np.array(stacked_ac[1:]))
+            stacked_ac = np.array(stacked_ac)
+            stacked_ac += (ac_mean2 - ac_mean).reshape((4, ac.shape[-1]))
+            stacked_ac = list(stacked_ac)
+
         vpreds[i] = vpred
         news[i] = new
         acs[i] = np.array(stacked_ac)
