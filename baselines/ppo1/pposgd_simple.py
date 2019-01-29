@@ -28,6 +28,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     acs = np.array([stacked_ac for _ in range(horizon)])
     prevacs = acs.copy()
     noise_vals = []
+    start = time.time()
     while True:
         prevac = np.array(stacked_ac)
         ac, vpred, ac_mean, logstd = pi.act(stochastic, np.hstack([stacked_ob, stacked_ac]), np.array(stacked_ac[1:]))
@@ -43,13 +44,20 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             plt.plot(np.array(noise_vals)[:, 1])
             plt.show()
         if t%200 >= 0 and t%200 < 5:
-            print(ac_mean[-ac.shape[-1]:], ac, np.exp(logstd), vpred)
+            print(ac_mean[-ac.shape[-1]:], ac - ac_mean[-ac.shape[-1]:], np.exp(logstd), vpred)
         if t > 0 and t % horizon == 0:
+            print("Batch time", time.time() - start)
+            start = time.time()
             yield {"ob" : obs, "rew" : rews, "vpred" : vpreds, "new" : news,
                     "ac" : acs, "prevac" : prevacs, "nextvpred": vpred * (1 - new),
                     "ep_rets" : ep_rets, "ep_lens" : ep_lens}
             # Be careful!!! if you change the downstream algorithm to aggregate
             # several of these batches, then be sure to do a deepcopy
+            ac, vpred, ac_mean2, logstd = pi.act(stochastic, np.hstack([stacked_ob, stacked_ac]),
+                                                np.array(stacked_ac[1:]))
+            stacked_ac = np.array(stacked_ac)
+            stacked_ac += (ac_mean2 - ac_mean).reshape((4, ac.shape[-1]))
+            stacked_ac = list(stacked_ac)
             ep_rets = []
             ep_lens = []
         i = t % horizon
@@ -189,7 +197,7 @@ def learn(env, policy_fn, *,
         d = Dataset(dict(ob=ob, ac=ac, atarg=atarg, vtarg=tdlamret), shuffle=not pi.recurrent)
         optim_batchsize = optim_batchsize or ob.shape[0]
 
-        if hasattr(pi, "ob_rms"): pi.ob_rms.update(ob) # update running mean/std for policy
+        if hasattr(pi, "ob_rms"): pi.ob_rms.update(ob[:, -1, :ob_space.shape[-1]]) # update running mean/std for policy
 
         assign_old_eq_new() # set old parameter values to new parameter values
         logger.log("Optimizing...")

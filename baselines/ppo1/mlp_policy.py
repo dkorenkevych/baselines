@@ -19,19 +19,22 @@ class MlpPolicy(object):
         self.sigma = sigma
         ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[sequence_length, 4] + [ob_space.shape[-1] + ac_space.shape[-1]])
         acs = U.get_placeholder(name="ac", dtype=tf.float32, shape=[sequence_length, 3] + list(ac_space.shape))
-        obz = tf.reshape(ob, [-1, 4 * ob.shape[-1]])
+        obz = ob[:, :, :ob_space.shape[-1]]
+        #obz = tf.reshape(ob, [-1, 4 * ob.shape[-1]])
         with tf.variable_scope("obfilter"):
-            self.ob_rms = RunningMeanStd(shape=(ob_space.shape[-1] + ac_space.shape[-1]) * 4)
+            #self.ob_rms = RunningMeanStd(shape=(ob_space.shape[-1] + ac_space.shape[-1]) * 4)
+            self.ob_rms = RunningMeanStd(shape=ob_space.shape[-1])
 
         with tf.variable_scope('vf'):
             obz = tf.clip_by_value((obz - self.ob_rms.mean) / self.ob_rms.std, -5.0, 5.0)
-            last_out = obz
+            obz = tf.reshape(obz, [-1, 4, obz.shape[-1]])
+            last_out = obz[:, -1, :]
             for i in range(num_hid_layers):
                 last_out = tf.nn.tanh(U.dense(last_out, hid_size, name="fc%i"%(i+1), weight_init=U.normc_initializer(1.0)))
             self.vpred = U.dense(last_out, 1, name='final', weight_init=U.normc_initializer(1.0))[:,0]
 
         with tf.variable_scope('pol'):
-            obz = tf.reshape(obz, [-1, ob.shape[-1]])
+            obz = tf.reshape(obz, [-1, obz.shape[-1]])
             last_out = obz
             for i in range(num_hid_layers):
                 last_out = tf.nn.tanh(U.dense(last_out, hid_size, name='fc%i'%(i+1), weight_init=U.normc_initializer(1.0)))
